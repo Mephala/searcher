@@ -9,15 +9,17 @@ import java.util.concurrent.Callable;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
+import java.util.concurrent.LinkedBlockingDeque;
+import java.util.concurrent.ThreadPoolExecutor;
 import java.util.concurrent.TimeUnit;
 
 import org.apache.log4j.Logger;
 
-import com.gokhanozg.wordhasher.WordHasher;
-
 import searcher.exception.ExceptionFactory;
 import searcher.exception.NotAFolderException;
 import searcher.exception.SearcherTimeoutExceededException;
+
+import com.gokhanozg.wordhasher.WordHasher;
 
 public class FileNameParser {
 
@@ -38,17 +40,14 @@ public class FileNameParser {
 
 	public void parseFileNames() throws SearcherTimeoutExceededException {
 		long start = System.currentTimeMillis();
-		ExecutorService executor = Executors.newFixedThreadPool(PARSE_THREADS);
+		final ThreadPoolExecutor executor = new ThreadPoolExecutor(PARSE_THREADS, PARSE_THREADS, 5l, TimeUnit.SECONDS, new LinkedBlockingDeque());
 		parseFileNamesMultiThread(executor, rootFolderToParse.listFiles());
-		executor.shutdown();
-		try {
-			executor.awaitTermination(PARSE_TIMEOUT, TimeUnit.SECONDS);
-		} catch (InterruptedException e) {
-			logger.error("Error while waiting for parsing", e);
-			throw ExceptionFactory.createSearcherTimeoutExceededException("Parsing file timeout has been reached.");
-		}
+		while (executor.getActiveCount() > 0)
+			;
 		final List<String> toBeHashedFileNames = new ArrayList<>();
 		for (String fileName : fileNames) {
+			if (fileName.contains("REST-Project-2-soapui-project.xml"))
+				System.err.println("Mevlit");
 			int lastSeparatorIndex = fileName.lastIndexOf(File.separator);
 			if (lastSeparatorIndex == -1) {
 				logger.fatal("Encountered a file path without file separator ????");

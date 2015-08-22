@@ -5,11 +5,13 @@ import static org.junit.Assert.assertTrue;
 import java.io.File;
 import java.util.List;
 
+import mockit.Deencapsulation;
+import mockit.integration.junit4.JMockit;
+
+import org.junit.Ignore;
 import org.junit.Test;
 import org.junit.runner.RunWith;
 
-import mockit.Deencapsulation;
-import mockit.integration.junit4.JMockit;
 import searcher.exception.NotAFolderException;
 import searcher.exception.SearcherTimeoutExceededException;
 import searcher.parser.FileNameParser;
@@ -17,18 +19,24 @@ import searcher.parser.FileNameParser;
 @RunWith(JMockit.class)
 public class ParsingFileTest {
 
-	@Test
+	// private final String ROOTFOLDERPATH = "/";
+	private final String ROOTFOLDERPATH = "C:\\Users\\N56834\\Desktop";
+	private final String DESKTOP_FOLDER = "C:\\";
+
+	// private final String DESKTOP_FOLDER = "/home/gokhanabi";
+
+	@Ignore
 	public void testParsingFileNames() throws NotAFolderException, SearcherTimeoutExceededException {
-		File rootFolder = new File("/");
+		File rootFolder = new File(ROOTFOLDERPATH);
 		FileNameParser fnp = new FileNameParser(rootFolder);
 		fnp.parseFileNames();
 		List<String> fileNameList = Deencapsulation.getField(fnp, "fileNames");
 		assertTrue(fileNameList != null && !fileNameList.isEmpty());
 	}
 
-	@Test
+	@Ignore
 	public void testFindingFileByWildCard() throws NotAFolderException, SearcherTimeoutExceededException {
-		File rootFolder = new File("/");
+		File rootFolder = new File(ROOTFOLDERPATH);
 		FileNameParser fnp = new FileNameParser(rootFolder);
 		fnp.parseFileNames();
 		fnp.getFileByWildCard("3e");
@@ -36,7 +44,7 @@ public class ParsingFileTest {
 
 	@Test
 	public void testFindingAFile() throws NotAFolderException, SearcherTimeoutExceededException {
-		File rootFolder = new File("/home/gokhanabi");
+		File rootFolder = new File(DESKTOP_FOLDER);
 		FileNameParser fnp = new FileNameParser(rootFolder);
 		fnp.parseFileNames();
 		List<String> fileNameList = Deencapsulation.getField(fnp, "fileNames");
