@@ -2,10 +2,13 @@ package searcher.parser;
 
 import java.io.File;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.Callable;
+import java.util.concurrent.ExecutionException;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
@@ -31,6 +34,7 @@ public class FileNameParser {
 	private final Logger logger = Logger.getLogger(getClass());
 	private final Map<String, List<File>> filenameToFileMap = new HashMap<>();
 	private Future<WordHasher> wordhasherFuture;
+	private WordHasher wordHasher;
 
 	public FileNameParser(File rootFolderToParse) throws NotAFolderException {
 		this.rootFolderToParse = rootFolderToParse;
@@ -42,25 +46,28 @@ public class FileNameParser {
 		long start = System.currentTimeMillis();
 		final ThreadPoolExecutor executor = new ThreadPoolExecutor(PARSE_THREADS, PARSE_THREADS, 5l, TimeUnit.SECONDS, new LinkedBlockingDeque());
 		parseFileNamesMultiThread(executor, rootFolderToParse.listFiles());
+
 		while (executor.getActiveCount() > 0)
 			;
 		final List<String> toBeHashedFileNames = new ArrayList<>();
-		for (String fileName : fileNames) {
-			if (fileName.contains("REST-Project-2-soapui-project.xml"))
-				System.err.println("Mevlit");
-			int lastSeparatorIndex = fileName.lastIndexOf(File.separator);
-			if (lastSeparatorIndex == -1) {
-				logger.fatal("Encountered a file path without file separator ????");
-				continue;
+		synchronized (fileNames) {
+			for (String fileName : fileNames) {
+				if (fileName.contains("REST-Project-2-soapui-project.xml"))
+					System.err.println("Mevlit");
+				int lastSeparatorIndex = fileName.lastIndexOf(File.separator);
+				if (lastSeparatorIndex == -1) {
+					logger.fatal("Encountered a file path without file separator ????");
+					continue;
+				}
+				String fileNameWithoutPath = fileName.substring(lastSeparatorIndex + 1);
+				toBeHashedFileNames.add(fileNameWithoutPath);
+				List<File> filesWithThisName = filenameToFileMap.get(fileNameWithoutPath);
+				if (filesWithThisName == null) {
+					filesWithThisName = new ArrayList<>();
+				}
+				filesWithThisName.add(new File(fileName));
+				filenameToFileMap.put(fileNameWithoutPath, filesWithThisName);
 			}
-			String fileNameWithoutPath = fileName.substring(lastSeparatorIndex + 1);
-			toBeHashedFileNames.add(fileNameWithoutPath);
-			List<File> filesWithThisName = filenameToFileMap.get(fileNameWithoutPath);
-			if (filesWithThisName == null) {
-				filesWithThisName = new ArrayList<>();
-			}
-			filesWithThisName.add(new File(fileName));
-			filenameToFileMap.put(fileNameWithoutPath, filesWithThisName);
 		}
 		ExecutorService wordHasherExecutor = Executors.newCachedThreadPool();
 		wordhasherFuture = wordHasherExecutor.submit(new Callable<WordHasher>() {
@@ -78,10 +85,44 @@ public class FileNameParser {
 	}
 
 	public List<File> getFileByWildCard(String pattern) {
-		while (!wordhasherFuture.isDone())
-			;
-		return null;
+		if (pattern == null || pattern.length() == 0)
+			return Collections.emptyList();
+		List<File> retval = new ArrayList<>();
+		if (pattern.length() > 5) {
+			fillInManually(pattern, retval);
+		} else if (wordHasher == null) {
+			if (wordhasherFuture.isDone()) {
+				try {
+					wordHasher = wordhasherFuture.get();
+					fillFromWH(pattern, retval);
+				} catch (InterruptedException | ExecutionException e) {
+					logger.fatal("Failed to obtain word hasher due to thread fault.", e);
+				}
+			} else {
+				fillInManually(pattern, retval);
+			}
+		} else {
+			fillFromWH(pattern, retval);
+		}
+		return retval;
+	}
 
+	private void fillFromWH(String pattern, List<File> retval) {
+		Set<String> fileNames = wordHasher.search(pattern);
+		for (String fileName : fileNames) {
+			retval.addAll(filenameToFileMap.get(fileName));
+		}
+	}
+
+	private void fillInManually(String pattern, List<File> retval) {
+		Set<String> fileNameSet = filenameToFileMap.keySet();
+		for (String filename : fileNameSet) {
+			if (filename == null)
+				continue;
+			if (filename.toLowerCase().contains(pattern.toLowerCase())) {
+				retval.addAll(filenameToFileMap.get(filename));
+			}
+		}
 	}
 
 	public List<File> getFileByFullFileName(String fullFileName) {
